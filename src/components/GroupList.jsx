@@ -1,22 +1,32 @@
 import { useEffect, useState } from "react";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+} from "firebase/firestore";
 import { db } from "../firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 export default function GroupList({ currentUser, onSelectChat }) {
   const [groups, setGroups] = useState([]);
 
+  // 🔹 Lấy danh sách nhóm của currentUser theo thời gian tạo
   useEffect(() => {
     if (!currentUser?.uid) return;
 
-    // 🔍 Chỉ lấy các group chat mà user hiện tại là thành viên
     const q = query(
       collection(db, "chats"),
+      where("members", "array-contains", currentUser.uid),
       where("isGroup", "==", true),
-      where("members", "array-contains", currentUser.uid)
+      //orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setGroups(list);
     });
 
@@ -24,27 +34,37 @@ export default function GroupList({ currentUser, onSelectChat }) {
   }, [currentUser]);
 
   return (
-    <div className="border-t">
-      <div className="p-2 font-semibold border-b bg-white">Nhóm chat</div>
+    <div className="border-t flex-1 overflow-y-auto bg-white">
+      <h3 className="p-3 font-semibold border-b bg-gray-100 text-gray-700">
+        Nhóm chat
+      </h3>
 
-      <div className="overflow-y-auto max-h-[300px]">
-        {groups.length === 0 ? (
-          <p className="text-gray-500 text-sm p-2">Chưa có nhóm nào</p>
-        ) : (
-          groups.map((group) => (
-            <div
-              key={group.id}
-              onClick={() => onSelectChat(group)}
-              className="p-2 hover:bg-gray-100 cursor-pointer border-b"
-            >
-              <div className="font-medium">{group.name}</div>
-              <div className="text-xs text-gray-500">
-                {group.members?.length || 0} thành viên
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      {groups.length === 0 && (
+        <p className="p-3 text-sm text-gray-400 italic">Chưa có nhóm nào</p>
+      )}
+
+      {groups.map((group) => (
+        <div
+          key={group.id}
+          onClick={() => onSelectChat(group)}
+          className="flex items-center p-3 hover:bg-gray-100 cursor-pointer border-b"
+        >
+          <img
+            src={
+              group.avatar ||
+              "https://res.cloudinary.com/dtsmm3z9b/image/upload/v1762159040/default_avatar_dvvkeg.png"
+            }
+            alt="group avatar"
+            className="w-10 h-10 rounded-full mr-3 object-cover"
+          />
+          <div>
+            <p className="font-medium text-gray-800">{group.name}</p>
+            <p className="text-xs text-gray-500">
+              {group.members?.length || 0} thành viên
+            </p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

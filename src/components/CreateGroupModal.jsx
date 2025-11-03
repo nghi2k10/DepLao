@@ -1,121 +1,154 @@
 import { useEffect, useState } from "react";
+import { collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  serverTimestamp,
-} from "firebase/firestore";
 
 export default function CreateGroupModal({ currentUser, onClose }) {
   const [groupName, setGroupName] = useState("");
+  const [selectedUsers, setSelectedUsers] = useState([]);
   const [users, setUsers] = useState([]);
-  const [selected, setSelected] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [groupAvatar, setGroupAvatar] = useState("");
 
-  // 🧩 Lấy danh sách user để chọn thành viên nhóm
+  // 🔹 Lấy danh sách user từ Firestore
   useEffect(() => {
     const fetchUsers = async () => {
       const querySnapshot = await getDocs(collection(db, "users"));
-      const userList = querySnapshot.docs
+      const list = querySnapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((u) => u.id !== currentUser.uid); // bỏ chính mình
-      setUsers(userList);
+        .filter((u) => u.uid !== currentUser.uid); // loại bỏ chính mình
+      setUsers(list);
     };
     fetchUsers();
   }, [currentUser]);
 
-  // ✅ Toggle chọn / bỏ chọn user
+  // 🔹 Chọn / bỏ chọn user
   const toggleUser = (userId) => {
-    setSelected((prev) =>
+    setSelectedUsers((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
         : [...prev, userId]
     );
   };
 
-  // 🚀 Tạo nhóm chat
-  const handleCreateGroup = async (e) => {
-    e.preventDefault();
-    if (!groupName.trim()) return alert("Vui lòng nhập tên nhóm!");
-    if (selected.length === 0)
-      return alert("Vui lòng chọn ít nhất một thành viên!");
+    // 🔹 Cloudinary config — thay giá trị của bạn vào đây
+  const CLOUD_NAME = "dtsmm3z9b"; // 👉 ví dụ: "mychatapp123"
+  const UPLOAD_PRESET = "chat_avatar_preset"; // 👉 ví dụ: "chatapp_upload"
 
-    setLoading(true);
+  // 🔹 Upload avatar nhóm lên Cloudinary
+  const handleUploadAvatar = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
     try {
-      const members = [currentUser.uid, ...selected];
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", UPLOAD_PRESET); // ⚠️ thay bằng preset của bạn
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      setGroupAvatar(data.secure_url);
+    } catch (error) {
+      console.error("Lỗi upload avatar:", error);
+      alert("Không thể upload ảnh nhóm!");
+    }
+    setUploading(false);
+  };
+
+  // 🔹 Tạo nhóm chat mới
+  const handleCreateGroup = async () => {
+    if (!groupName.trim()) return alert("Vui lòng nhập tên nhóm!");
+    if (selectedUsers.length < 1) return alert("Chọn ít nhất 1 thành viên!");
+
+    try {
+      const members = [...selectedUsers, currentUser.uid];
+
       await addDoc(collection(db, "chats"), {
-        name: groupName.trim(),
-        isGroup: true,
+        name: groupName,
         members,
+        isGroup: true,
+        avatar:
+          groupAvatar ||
+          "https://res.cloudinary.com/dtsmm3z9b/image/upload/v1762162714/default_group_gdtmue.png",
         createdAt: serverTimestamp(),
       });
 
-      onClose();
-    } catch (err) {
-      console.error(err);
-      alert("Lỗi khi tạo nhóm: " + err.message);
-    } finally {
-      setLoading(false);
+      onClose(); // đóng modal sau khi tạo nhóm
+    } catch (error) {
+      console.error("Lỗi tạo nhóm:", error);
+      alert("Không thể tạo nhóm!");
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-lg p-6 w-96">
-        <h2 className="text-xl font-semibold mb-4 text-center">
-          Tạo nhóm chat mới
-        </h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white w-96 p-5 rounded-xl shadow-lg">
+        <h2 className="text-lg font-semibold mb-3">Tạo nhóm mới</h2>
 
-        <form onSubmit={handleCreateGroup} className="space-y-4">
-          {/* Nhập tên nhóm */}
-          <input
-            type="text"
-            placeholder="Tên nhóm"
-            value={groupName}
-            onChange={(e) => setGroupName(e.target.value)}
-            className="border p-2 rounded-md w-full focus:outline-blue-500"
-          />
+        {/* Nhập tên nhóm */}
+        <input
+          type="text"
+          placeholder="Nhập tên nhóm..."
+          value={groupName}
+          onChange={(e) => setGroupName(e.target.value)}
+          className="border w-full px-3 py-2 rounded mb-3"
+        />
 
-          {/* Danh sách chọn user */}
-          <div className="border rounded-md max-h-48 overflow-y-auto p-2">
-            {users.length === 0 ? (
-              <p className="text-sm text-gray-500">Không có người dùng nào</p>
-            ) : (
-              users.map((u) => (
-                <label
-                  key={u.id}
-                  className="flex items-center gap-2 p-1 hover:bg-gray-100 rounded cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(u.id)}
-                    onChange={() => toggleUser(u.id)}
-                  />
-                  <span className="text-sm">{u.name || u.email}</span>
-                </label>
-              ))
-            )}
-          </div>
+        {/* Upload avatar nhóm */}
+        <div className="flex items-center mb-3">
+          <input type="file" accept="image/*" onChange={handleUploadAvatar} />
+          {uploading && <p className="text-sm text-gray-500 ml-2">Đang tải...</p>}
+          {groupAvatar && (
+            <img
+              src={groupAvatar}
+              alt="avatar nhóm"
+              className="w-10 h-10 rounded-full ml-2"
+            />
+          )}
+        </div>
 
-          {/* Nút hành động */}
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-md border hover:bg-gray-100"
+        {/* Danh sách user chọn thành viên */}
+        <div className="max-h-60 overflow-y-auto border rounded p-2 mb-4">
+          {users.map((user) => (
+            <label
+              key={user.uid}
+              className="flex items-center p-1 cursor-pointer hover:bg-gray-50 rounded"
             >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
-            >
-              {loading ? "Đang tạo..." : "Tạo nhóm"}
-            </button>
-          </div>
-        </form>
+              <input
+                type="checkbox"
+                checked={selectedUsers.includes(user.uid)}
+                onChange={() => toggleUser(user.uid)}
+                className="mr-2"
+              />
+              <img
+                src={
+                  user.avatar ||
+                  "https://res.cloudinary.com/dtsmm3z9b/image/upload/v1762159040/default_avatar_dvvkeg.png"
+                }
+                alt="avatar"
+                className="w-8 h-8 rounded-full mr-2"
+              />
+              <span>{user.name}</span>
+            </label>
+          ))}
+        </div>
+
+        {/* Nút hành động */}
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={handleCreateGroup}
+            className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
+          >
+            Tạo nhóm
+          </button>
+        </div>
       </div>
     </div>
   );

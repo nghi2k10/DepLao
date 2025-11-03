@@ -1,98 +1,88 @@
 import { useEffect, useState } from "react";
 import {
   collection,
+  onSnapshot,
   query,
   where,
-  onSnapshot,
-  addDoc,
   getDocs,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
 export default function UserList({ currentUser, onSelectChat }) {
   const [users, setUsers] = useState([]);
 
-  // 🔹 Lấy danh sách người dùng trừ bản thân
   useEffect(() => {
-    if (!currentUser?.uid) return;
-
-    const q = query(collection(db, "users"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const list = snapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((u) => u.id !== currentUser.uid);
+        .filter((u) => u.uid !== currentUser.uid); // bỏ chính mình
       setUsers(list);
     });
-
     return () => unsubscribe();
   }, [currentUser]);
 
-  // 🔹 Khi chọn user -> tìm hoặc tạo chat 1-1
+  // 🟢 Hàm tạo hoặc mở chat 1-1
   const handleSelectUser = async (user) => {
-    try {
-      const chatsRef = collection(db, "chats");
+    // Tạo query kiểm tra xem đã có chat giữa 2 người chưa
+    const chatsRef = collection(db, "chats");
+    const q = query(
+      chatsRef,
+      where("isGroup", "==", false),
+      where("members", "array-contains", currentUser.uid)
+    );
 
-      // Kiểm tra xem đã có chat 1-1 chưa
-      const q = query(
-        chatsRef,
-        where("isGroup", "==", false),
-        where("members", "array-contains", currentUser.uid)
-      );
-      const querySnapshot = await getDocs(q);
+    const snapshot = await getDocs(q);
 
-      let existingChat = null;
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (
-          data.members.length === 2 &&
-          data.members.includes(user.id) &&
-          data.members.includes(currentUser.uid)
-        ) {
-          existingChat = { id: doc.id, ...data };
-        }
-      });
-
-      // Nếu chưa có -> tạo mới
-      if (!existingChat) {
-        const newChatRef = await addDoc(chatsRef, {
-          name: user.name || user.email,
-          isGroup: false,
-          members: [currentUser.uid, user.id],
-          createdAt: new Date(),
-        });
-        existingChat = {
-          id: newChatRef.id,
-          name: user.name || user.email,
-          isGroup: false,
-          members: [currentUser.uid, user.id],
-        };
+    // Tìm chat có cả currentUser.uid và user.uid
+    let chat = null;
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.members.includes(user.uid)) {
+        chat = { id: doc.id, ...data };
       }
+    });
 
-      // Gửi thông tin chat lên HomePage để mở ChatRoom
-      onSelectChat(existingChat);
-    } catch (error) {
-      console.error("Lỗi khi chọn user:", error);
+    // Nếu chưa có → tạo mới
+    if (!chat) {
+      const newChat = {
+        name: user.name || user.email,
+        isGroup: false,
+        members: [currentUser.uid, user.uid],
+        createdAt: serverTimestamp(),
+      };
+      const docRef = await addDoc(chatsRef, newChat);
+      chat = { id: docRef.id, ...newChat };
     }
+
+    // ✅ Truyền về HomePage
+    onSelectChat(chat);
   };
 
   return (
-    <div className="border-t">
-      <div className="p-2 font-semibold border-b bg-white">Người dùng</div>
-      <div className="overflow-y-auto max-h-[300px]">
-        {users.length === 0 ? (
-          <p className="text-gray-500 text-sm p-2">Chưa có người dùng khác</p>
-        ) : (
-          users.map((user) => (
-            <div
-              key={user.id}
-              onClick={() => handleSelectUser(user)}
-              className="p-2 hover:bg-gray-100 cursor-pointer border-b"
-            >
-              <div className="font-medium">{user.name || user.email}</div>
-            </div>
-          ))
-        )}
-      </div>
+    <div className="flex-1 overflow-y-auto">
+      <h3 className="p-3 font-semibold border-b bg-gray-100">Người dùng</h3>
+      {users.map((user) => (
+        <div
+          key={user.uid}
+          className="flex items-center p-3 hover:bg-gray-100 cursor-pointer border-b"
+          onClick={() => handleSelectUser(user)}
+        >
+          <img
+            src={
+              user.avatar ||
+              "https://res.cloudinary.com/dtsmm3z9b/image/upload/v1762159040/default_avatar_dvvkeg.png"
+            }
+            alt="avatar"
+            className="w-10 h-10 rounded-full mr-3"
+          />
+          <div>
+            <p className="font-medium">{user.name}</p>
+            <p className="text-xs text-gray-500">{user.email}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
