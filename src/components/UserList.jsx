@@ -3,83 +3,96 @@ import {
   collection,
   query,
   where,
-  getDocs,
+  onSnapshot,
   addDoc,
-  serverTimestamp,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
 export default function UserList({ currentUser, onSelectChat }) {
   const [users, setUsers] = useState([]);
 
+  // 🔹 Lấy danh sách người dùng trừ bản thân
   useEffect(() => {
-    const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, "users"));
-      const allUsers = snapshot.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
+    if (!currentUser?.uid) return;
+
+    const q = query(collection(db, "users"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((u) => u.id !== currentUser.uid);
-      setUsers(allUsers);
-    };
-    fetchUsers();
+      setUsers(list);
+    });
+
+    return () => unsubscribe();
   }, [currentUser]);
 
-  const startPrivateChat = async (otherUser) => {
-    // Kiểm tra xem đã có chat 1-1 giữa 2 user chưa
-    const q = query(
-      collection(db, "chats"),
-      where("type", "==", "private"),
-      where("members", "array-contains", currentUser.uid)
-    );
+  // 🔹 Khi chọn user -> tìm hoặc tạo chat 1-1
+  const handleSelectUser = async (user) => {
+    try {
+      const chatsRef = collection(db, "chats");
 
-    const snapshot = await getDocs(q);
-
-    let chat = snapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .find(
-        (c) =>
-          c.members.includes(otherUser.id) &&
-          c.members.includes(currentUser.uid)
+      // Kiểm tra xem đã có chat 1-1 chưa
+      const q = query(
+        chatsRef,
+        where("isGroup", "==", false),
+        where("members", "array-contains", currentUser.uid)
       );
+      const querySnapshot = await getDocs(q);
 
-    // Nếu chưa có → tạo mới
-    if (!chat) {
-      const newChatRef = await addDoc(collection(db, "chats"), {
-        type: "private",
-        members: [currentUser.uid, otherUser.id],
-        name: otherUser.name,
-        createdAt: serverTimestamp(),
+      let existingChat = null;
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (
+          data.members.length === 2 &&
+          data.members.includes(user.id) &&
+          data.members.includes(currentUser.uid)
+        ) {
+          existingChat = { id: doc.id, ...data };
+        }
       });
-      chat = { id: newChatRef.id, name: otherUser.name, members: [currentUser.uid, otherUser.id], type: "private" };
-    }
 
-    onSelectChat(chat);
+      // Nếu chưa có -> tạo mới
+      if (!existingChat) {
+        const newChatRef = await addDoc(chatsRef, {
+          name: user.name || user.email,
+          isGroup: false,
+          members: [currentUser.uid, user.id],
+          createdAt: new Date(),
+        });
+        existingChat = {
+          id: newChatRef.id,
+          name: user.name || user.email,
+          isGroup: false,
+          members: [currentUser.uid, user.id],
+        };
+      }
+
+      // Gửi thông tin chat lên HomePage để mở ChatRoom
+      onSelectChat(existingChat);
+    } catch (error) {
+      console.error("Lỗi khi chọn user:", error);
+    }
   };
 
   return (
-    <div className="p-4 bg-gray-50 rounded-lg shadow-md">
-      <h2 className="text-lg font-semibold mb-2">Người dùng</h2>
-      <ul className="space-y-2">
-        {users.map((u) => (
-          <li
-            key={u.id}
-            onClick={() => startPrivateChat(u)}
-            className="p-2 bg-white rounded-md hover:bg-blue-100 cursor-pointer flex items-center space-x-2"
-          >
-            {u.avatar ? (
-              <img
-                src={u.avatar}
-                alt="avatar"
-                className="w-8 h-8 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-blue-300 flex items-center justify-center text-white font-bold">
-                {u.name?.[0]?.toUpperCase()}
-              </div>
-            )}
-            <span>{u.name}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="border-t">
+      <div className="p-2 font-semibold border-b bg-white">Người dùng</div>
+      <div className="overflow-y-auto max-h-[300px]">
+        {users.length === 0 ? (
+          <p className="text-gray-500 text-sm p-2">Chưa có người dùng khác</p>
+        ) : (
+          users.map((user) => (
+            <div
+              key={user.id}
+              onClick={() => handleSelectUser(user)}
+              className="p-2 hover:bg-gray-100 cursor-pointer border-b"
+            >
+              <div className="font-medium">{user.name || user.email}</div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

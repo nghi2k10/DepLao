@@ -1,8 +1,8 @@
-import React, { useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { useState } from "react";
 import { auth, db } from "../firebase";
-import { Link, useNavigate } from "react-router-dom";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -13,67 +13,84 @@ export default function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setError("");
+
     try {
-      const res = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(res.user, { displayName: name });
-      await setDoc(doc(db, "users", res.user.uid), {
-        uid: res.user.uid,
-        name,
-        email,
-        createdAt: new Date(),
+      // 🧩 1. Tạo tài khoản Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 🧠 2. Cập nhật tên hiển thị trong Auth
+      await updateProfile(user, { displayName: name });
+
+      // 📝 3. Ghi thông tin vào Firestore (collection "users")
+      await setDoc(doc(db, "users", user.uid), {
+        id: user.uid,
+        name: name,
+        email: email,
+        avatar: "", // bạn có thể thêm upload avatar sau
+        createdAt: serverTimestamp(),
       });
-      navigate("/");
+
+      // 🚀 4. Điều hướng sang chat sau khi đăng ký xong
+      navigate("/chat");
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("Lỗi đăng ký: " + err.message);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-500 via-indigo-500 to-blue-600">
-      <div className="bg-white/90 backdrop-blur-lg shadow-2xl rounded-2xl w-96 p-8">
-        <h2 className="text-3xl font-bold text-center text-indigo-600 mb-6">
-          📝 Đăng ký
-        </h2>
-        <form onSubmit={handleRegister} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Tên hiển thị"
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Mật khẩu"
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-          <button
-            type="submit"
-            className="w-full py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 hover:scale-[1.02] transition"
-          >
-            Tạo tài khoản
-          </button>
-        </form>
-        <p className="text-center text-sm text-gray-600 mt-4">
+    <div className="flex items-center justify-center h-screen bg-gray-100">
+      <form
+        onSubmit={handleRegister}
+        className="bg-white p-8 rounded-xl shadow-md w-96 space-y-4"
+      >
+        <h2 className="text-2xl font-semibold text-center mb-4">Đăng ký</h2>
+
+        <input
+          type="text"
+          placeholder="Tên hiển thị"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          className="border p-2 w-full rounded-md"
+        />
+
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="border p-2 w-full rounded-md"
+        />
+
+        <input
+          type="password"
+          placeholder="Mật khẩu"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className="border p-2 w-full rounded-md"
+        />
+
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+
+        <button
+          type="submit"
+          className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-md"
+        >
+          Đăng ký
+        </button>
+
+        <p className="text-center text-sm mt-2">
           Đã có tài khoản?{" "}
-          <Link to="/" className="text-indigo-600 font-semibold hover:underline">
+          <Link to="/" className="text-blue-600 hover:underline">
             Đăng nhập
           </Link>
         </p>
-      </div>
+      </form>
     </div>
   );
 }

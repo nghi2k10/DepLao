@@ -13,7 +13,7 @@ export default function Login() {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate("/chat");
+      navigate("/home");
     } catch (err) {
       setError("Sai tài khoản hoặc mật khẩu!");
     }
