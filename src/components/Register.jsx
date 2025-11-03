@@ -6,7 +6,7 @@ import { doc, setDoc } from "firebase/firestore";
 export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +26,7 @@ export default function Register() {
 
       // 🔹 2. Upload avatar lên Cloudinary (nếu có)
       let photoURL =
-        "https://res.cloudinary.com/dtsmm3z9b/image/upload/v1762159040/default_avatar_dvvkeg.png"; // avatar mặc định
+        "https://res.cloudinary.com/demo/image/upload/v1730589274/default_avatar.png"; // avatar mặc định
 
       if (avatarFile) {
         const formData = new FormData();
@@ -42,19 +42,19 @@ export default function Register() {
       }
 
       // 🔹 3. Cập nhật hồ sơ Firebase
-      await updateProfile(user, { name, photoURL });
+      await updateProfile(user, { displayName, photoURL });
 
       // 🔹 4. Lưu người dùng vào Firestore
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
-        name,
+        displayName,
         email,
         avatar: photoURL,
         createdAt: new Date(),
       });
 
       alert("Đăng ký thành công!");
-      window.location.href = "/home";
+      window.location.href = "/chat";
     } catch (err) {
       console.error(err);
       setError("Lỗi khi đăng ký: " + err.message);
@@ -75,7 +75,7 @@ export default function Register() {
           type="text"
           placeholder="Tên hiển thị"
           className="w-full border p-2 rounded"
-          value={name}
+          value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           required
         />

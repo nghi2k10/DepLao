@@ -53,7 +53,7 @@ export default function ChatRoom({ chat, currentUser }) {
   const handleSend = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !chat?.id) return;
-
+    console.log(currentUser);
     await addDoc(collection(db, "messages"), {
       chatId: chat.id,
       senderId: currentUser.uid,

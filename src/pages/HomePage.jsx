@@ -14,6 +14,7 @@ export default function HomePage() {
   // 🔹 Theo dõi trạng thái đăng nhập Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log(user);
       setCurrentUser(user);
     });
     return () => unsubscribe();

@@ -47,7 +47,7 @@ export default function UserList({ currentUser, onSelectChat }) {
     // Nếu chưa có → tạo mới
     if (!chat) {
       const newChat = {
-        name: user.name || user.email,
+        name: user.displayName || user.email,
         isGroup: false,
         members: [currentUser.uid, user.uid],
         createdAt: serverTimestamp(),
@@ -78,7 +78,7 @@ export default function UserList({ currentUser, onSelectChat }) {
             className="w-10 h-10 rounded-full mr-3"
           />
           <div>
-            <p className="font-medium">{user.name}</p>
+            <p className="font-medium">{user.displayName}</p>
             <p className="text-xs text-gray-500">{user.email}</p>
           </div>
         </div>
