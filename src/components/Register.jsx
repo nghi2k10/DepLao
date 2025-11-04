@@ -26,7 +26,7 @@ export default function Register() {
 
       // 🔹 2. Upload avatar lên Cloudinary (nếu có)
       let photoURL =
-        "https://res.cloudinary.com/demo/image/upload/v1730589274/default_avatar.png"; // avatar mặc định
+        "https://res.cloudinary.com/dtsmm3z9b/image/upload/v1762159040/default_avatar_dvvkeg.png"; // avatar mặc định
 
       if (avatarFile) {
         const formData = new FormData();
@@ -54,7 +54,7 @@ export default function Register() {
       });
 
       alert("Đăng ký thành công!");
-      window.location.href = "/chat";
+      window.location.href = "/";
     } catch (err) {
       console.error(err);
       setError("Lỗi khi đăng ký: " + err.message);
